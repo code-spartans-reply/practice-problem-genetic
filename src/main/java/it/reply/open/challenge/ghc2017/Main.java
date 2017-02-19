@@ -9,18 +9,24 @@ import org.jenetics.Chromosome;
 import org.jenetics.Gene;
 import org.jenetics.Genotype;
 import org.jenetics.IntegerGene;
+import org.jenetics.TournamentSelector;
 import org.jenetics.engine.Engine;
 import org.jenetics.engine.EvolutionResult;
+import org.jenetics.engine.EvolutionStatistics;
+import org.jenetics.stat.DoubleMomentStatistics;
 import org.jenetics.util.Factory;
 import org.jenetics.util.ISeq;
 import org.jenetics.util.RandomRegistry;
 
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 
 import it.reply.open.challenge.ghc2017.model.ProblemParameters;
 import it.reply.open.challenge.ghc2017.model.TileChromosome;
 
 public class Main {
+
+	private static final double BASE_SOLUTION_POINTS = 10d;
 
 	private static class RandomGenotypeFactory<G extends Gene<?, G>> implements Factory<Genotype<G>> {
 
@@ -45,10 +51,12 @@ public class Main {
 		RandomGenotypeFactory<IntegerGene> randomGenotypeFactory = new RandomGenotypeFactory<>(TileChromosome.of(
 				parameters.getPizzaWidth() - 1, parameters.getPizzaHeight() - 1, parameters.getMaxSliceDimension()));
 
+		final EvolutionStatistics<Double, DoubleMomentStatistics> evolutionStatistics = EvolutionStatistics.ofNumber();
 		Genotype<IntegerGene> result = Engine.builder((genotype) -> {
 			return evaluatePizzaSlicing(genotype, parameters);
-		}, randomGenotypeFactory).build().stream().limit(300).collect(EvolutionResult.toBestGenotype());
+		}, randomGenotypeFactory).selector(new TournamentSelector<>(10)).build().stream().peek(evolutionStatistics).limit(700).collect(EvolutionResult.toBestGenotype());
 
+		System.out.println(evolutionStatistics);
 		Main.renderOutput(result, parameters);
 	}
 
@@ -72,7 +80,7 @@ public class Main {
 		for (int i = 0; i < parameters.getPizzaWidth(); ++i) {
 			for (int j = 0; j < parameters.getPizzaHeight(); ++j) {
 
-				System.out.print(outputMatrix[i][j]);
+				System.out.print(MoreObjects.firstNonNull(outputMatrix[i][j], String.format("|%9s)|", "   (" + parameters.getPizza()[i][j])));
 			}
 			System.out.println();
 		}
@@ -81,9 +89,9 @@ public class Main {
 
 	private static double evaluatePizzaSlicing(Genotype<IntegerGene> genotype, ProblemParameters parameters) {
 		final double[][] evaluationMatrix = new double[parameters.getPizzaWidth()][parameters.getPizzaHeight()];
-		int chromoId = -1;
+//		int chromoId = -1;
 		for (final Chromosome<IntegerGene> chromosome : genotype) {
-			++chromoId;
+//			++chromoId;
 			final TileChromosome tile = (TileChromosome) chromosome;
 			int tomatoes = 0;
 			int mushrooms = 0;
@@ -98,9 +106,7 @@ public class Main {
 			}
 
 			double basePoints = tomatoes >= parameters.getMinIngredientsNumber()
-					&& mushrooms >= parameters.getMinIngredientsNumber() ? 10d : 0d;
-
-			System.out.println(String.format("Chromosome %d is %d cells wide and has %d tomatoes and %d mushrooms: basePoints = %1.2f", chromoId, tile.getDimenstion(), tomatoes, mushrooms, basePoints));
+					&& mushrooms >= parameters.getMinIngredientsNumber() ? BASE_SOLUTION_POINTS : 0d;
 
 			for (int currentX = tile.getStartX(); currentX <= tile.getEndX(); ++currentX) {
 				for (int currentY = tile.getStartY(); currentY <= tile.getEndY(); ++currentY) {
@@ -117,8 +123,8 @@ public class Main {
 				fitness += evaluationMatrix[i][j];
 			}
 		}
-		
-		System.out.println(String.format("Genotype fitness: %10.2f", fitness));
+
+//		System.out.println(String.format("Genotype fitness: %10.2f", fitness));
 		return fitness;
 	}
 
